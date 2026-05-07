@@ -91,42 +91,87 @@ def budget_calc(org, dest, days, date:list , people_number=None, local_constrain
             elif grain == "state":
                 if len(flight_data[flight_data['FlightDate'] == date[0]]) < 10:
                     raise ValueError("No flight data available for the given constraints.")
+                
+        elif local_constraint['transportation'] == 'no flight':
+            if len(flight_data[flight_data['FlightDate'] == date[0]]) < 2 or flight_data.iloc[0]['Distance'] > 800:
+                raise ValueError("Impossible")
+            
+        # if local_constraint['flgiht time']:
+        #     if local_constraint['flgiht time'] == 'morning':
+        #         flight_data = flight_data[flight_data['DepTime'] < '12:00']
+        #     elif local_constraint['flgiht time'] == 'afternoon':
+        #         flight_data = flight_data[(flight_data['DepTime'] >= '12:00') & (flight_data['DepTime'] < '18:00')]
+        #     elif local_constraint['flgiht time'] == 'evening':
+        #         flight_data = flight_data[flight_data['DepTime'] >= '18:00']
+
+        if local_constraint['room type']:
+            if local_constraint['room type'] == 'shared room':
+                hotel_data = hotel_data[hotel_data['room type'] == 'Shared room']
+            elif local_constraint['room type'] == 'not shared room':
+                hotel_data = hotel_data[(hotel_data['room type'] == 'Private room') | (hotel_data['room type'] == 'Entire home/apt')]
+            elif local_constraint['room type'] == 'private room':
+                hotel_data = hotel_data[hotel_data['room type'] == 'Private room']
+            elif local_constraint['room type'] == 'entire room':
+                hotel_data = hotel_data[hotel_data['room type'] == 'Entire home/apt']
+
+            if days == 3:
+                if len(hotel_data) < 3:
+                    raise ValueError("No hotel data available for the given constraints.")
+            elif days == 5:
+                if len(hotel_data) < 5:
+                    raise ValueError("No hotel data available for the given constraints.")
+            elif days == 7:
+                if len(hotel_data) < 7:
+                    raise ValueError("No hotel data available for the given constraints.")
         
-        if local_constraint['accommodation'] == 'no lodging':
-            hotel_data = pd.DataFrame()
-        if local_constraint['cuisine'] == 'Chinese':
-            restaurant_data = restaurant_data[restaurant_data['Cuisine'].isin(['Chinese', 'Asian', 'Dim Sum', 'Szechuan', 'Cantonese'])]
-        elif local_constraint['cuisine'] == 'American':
-            restaurant_data = restaurant_data[restaurant_data['Cuisine'].isin(['American', 'American (New)', 'American (Traditional)', 'Burgers', 'BBQ', 'Steakhouses'])]
-        elif local_constraint['cuisine'] == 'Italian':
-            restaurant_data = restaurant_data[restaurant_data['Cuisine'].isin(['Italian', 'Pizza', 'Mediterranean'])]
-        elif local_constraint['cuisine'] == 'Mexican':
-            restaurant_data = restaurant_data[restaurant_data['Cuisine'].isin(['Mexican', 'Latin American', 'Tex-Mex'])]
-        elif local_constraint['cuisine'] == 'Indian':
-            restaurant_data = restaurant_data[restaurant_data['Cuisine'].isin(['Indian', 'Pakistani', 'South Indian'])]
-        elif local_constraint['cuisine'] == 'French':
-            restaurant_data = restaurant_data[restaurant_data['Cuisine'].isin(['French', 'Bistros', 'Brasseries'])]
-        elif local_constraint['cuisine'] == 'Japanese':
-            restaurant_data = restaurant_data[restaurant_data['Cuisine'].isin(['Japanese', 'Sushi Bars', 'Ramen', 'Izakaya'])]
-        elif local_constraint['cuisine'] == 'Korean':
-            restaurant_data = restaurant_data[restaurant_data['Cuisine'].isin(['Korean', 'Korean BBQ'])]
-        elif local_constraint['cuisine'] == 'Thai':
-            restaurant_data = restaurant_data[restaurant_data['Cuisine'].isin(['Thai', 'Vietnamese', 'Asian Fusion'])]
+        if local_constraint['house rule']:
+            if local_constraint['house rule'] == 'parties':
+                # the house rule should not contain 'parties'
+                hotel_data = hotel_data[~hotel_data['house_rules'].str.contains('No parties')]
+            elif local_constraint['house rule'] == 'smoking':
+                hotel_data = hotel_data[~hotel_data['house_rules'].str.contains('No smoking')]
+            elif local_constraint['house rule'] == 'children under 10':
+                hotel_data = hotel_data[~hotel_data['house_rules'].str.contains('No children under 10')]
+            elif local_constraint['house rule'] == 'pets':
+                hotel_data = hotel_data[~hotel_data['house_rules'].str.contains('No pets')]
+            elif local_constraint['house rule'] == 'visitors':
+                hotel_data = hotel_data[~hotel_data['house_rules'].str.contains('No visitors')]
+        
+            if days == 3:
+                if len(hotel_data) < 3:
+                    raise ValueError("No hotel data available for the given constraints.")
+            elif days == 5:
+                if len(hotel_data) < 5:
+                    raise ValueError("No hotel data available for the given constraints.")
+            elif days == 7:
+                if len(hotel_data) < 7:
+                    raise ValueError("No hotel data available for the given constraints.")
+                
+        if local_constraint['cuisine']:
+            # judge whether the cuisine is in the cuisine list
+            restaurant_data = restaurant_data[restaurant_data['Cuisines'].str.contains('|'.join(local_constraint['cuisine']))]
+            
+            if days == 3:
+                if len(restaurant_data) < 3:
+                    raise ValueError("No restaurant data available for the given constraints.")
+            elif days == 5:
+                if len(restaurant_data) < 5:
+                    raise ValueError("No restaurant data available for the given constraints.")
+            elif days == 7:
+                if len(restaurant_data) < 7:
+                    raise ValueError("No restaurant data available for the given constraints.")
 
-    hotel_cost_lowest = estimate_budget(hotel_data['price'].tolist(), 'lowest')
-    hotel_cost_highest = estimate_budget(hotel_data['price'].tolist(), 'highest')
-    hotel_cost_average = estimate_budget(hotel_data['price'].tolist(), 'average')
-    
-    restaurant_cost_lowest = estimate_budget(restaurant_data['average cost'].tolist(), 'lowest')
-    restaurant_cost_highest = estimate_budget(restaurant_data['average cost'].tolist(), 'highest')
-    restaurant_cost_average = estimate_budget(restaurant_data['average cost'].tolist(), 'average')
+    # Calculate budgets for all three modes
 
-    flight_cost_lowest = estimate_budget(flight_data['Price'].tolist(), 'lowest')
-    flight_cost_highest = estimate_budget(flight_data['Price'].tolist(), 'highest')
-    flight_cost_average = estimate_budget(flight_data['Price'].tolist(), 'average')
+    budgets = {}
+    for mode in ["lowest", "highest", "average"]:
+        if local_constraint and local_constraint['transportation'] == 'self driving':
+            flight_budget = eval(distanceMatrix.run(org, dest)['cost'].replace("$","")) * multipliers[days]["flight"]
+        else:
+            flight_budget = estimate_budget(flight_data["Price"].tolist(), mode) * multipliers[days]["flight"]
+        hotel_budget = estimate_budget(hotel_data["price"].tolist(), mode) * multipliers[days]["hotel"]
+        restaurant_budget = estimate_budget(restaurant_data["Average Cost"].tolist(), mode) * multipliers[days]["restaurant"]
+        total_budget = flight_budget + hotel_budget + restaurant_budget
+        budgets[mode] = total_budget
 
-    return {
-        'lowest': hotel_cost_lowest * multipliers[days]['hotel'] + restaurant_cost_lowest * multipliers[days]['restaurant'] + flight_cost_lowest * multipliers[days]['flight'],
-        'highest': hotel_cost_highest * multipliers[days]['hotel'] + restaurant_cost_highest * multipliers[days]['restaurant'] + flight_cost_highest * multipliers[days]['flight'],
-        'average': hotel_cost_average * multipliers[days]['hotel'] + restaurant_cost_average * multipliers[days]['restaurant'] + flight_cost_average * multipliers[days]['flight']
-    }
+    return budgets
